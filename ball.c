@@ -36,24 +36,39 @@ size_t GenerateRandomHexColor() {
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-void SDL_FillCircle(SDL_Surface* surface, Position position, int r, size_t color)
-{
-    for (int x = -r; x <= r; x = x + 1)
-    {
-        for (int y = -r; y <= r; y = y + 1)
-        {
-            double distance = sqrt((x*x) + (y*y));
+void SDL_DrawHorizontalLine(SDL_Surface* surface, int x1, int x2, int y, Uint32 color) {
+    if (y < 0 || y >= surface->h || x1 >= surface->w || x2 < 0)
+        return;
 
-            if (distance <= r)
-            {
-                SDL_Rect rectangle;
-                rectangle.w = 1;
-                rectangle.h = 1;
-                rectangle.x = x + position.x;
-                rectangle.y = y + position.y;
+    if (x1 < 0) x1 = 0;
+    if (x2 >= surface->w) x2 = surface->w - 1;
 
-                SDL_FillRect(surface, &rectangle, color);
-            }
+    Uint32 *pixels = (Uint32*)surface->pixels;
+    for (int x = x1; x <= x2; x++) {
+        pixels[y * (surface->pitch / 4) + x] = color;
+    }
+}
+
+void SDL_FillCircle(SDL_Surface* surface, Position position, int r, Uint32 color) {
+    int cx = position.x;
+    int cy = position.y;
+    int x = 0;
+    int y = r;
+    int p = 1 - r;
+
+    while (x <= y) {
+        // Draw horizontal lines across the circle's radius
+        SDL_DrawHorizontalLine(surface, cx - x, cx + x, cy - y, color);
+        SDL_DrawHorizontalLine(surface, cx - y, cx + y, cy - x, color);
+        SDL_DrawHorizontalLine(surface, cx - x, cx + x, cy + y, color);
+        SDL_DrawHorizontalLine(surface, cx - y, cx + y, cy + x, color);
+
+        x++;
+        if (p < 0) {
+            p += 2 * x + 1;
+        } else {
+            y--;
+            p += 2 * (x - y) + 1;
         }
     }
 }
@@ -78,15 +93,22 @@ void SDL_DrawTrailCircle(SDL_Surface* surface, Game* game)
     }
 }
 
-void SDL_AccelerateCircle(Circle* circle)
+void SDL_AccelerateCircle(Circle* circle, double deltaTime)
 {
-    circle->velocityY += gravity;
+    if (deltaTime == 0)
+    {
+        return;
+    }
 
-    circle->position.x = circle->position.x + circle->velocityX;
-    circle->position.y = circle->position.y + circle->velocityY;
+    double deltaMultiplier = deltaTime * 50.0;
+
+    circle->velocityY += gravity * deltaMultiplier;
+
+    circle->position.x = circle->position.x + (circle->velocityX * deltaMultiplier);
+    circle->position.y = circle->position.y + (circle->velocityY * deltaMultiplier);
 }
 
-void SDL_UpdateBallVelocity(Circle* circle, int w, int h)
+void SDL_CheckBoundsBounce(Circle* circle, int w, int h, double deltaTime)
 {
     if ((circle->position.y - circle->radius) <= 0)
     {
@@ -114,17 +136,17 @@ void SDL_UpdateBallVelocity(Circle* circle, int w, int h)
     }
 }
 
-void SDL_SimulateGame(SDL_Window* window, SDL_Surface* surface, SDL_Rect* surfaceRectangle, Game* game)
+void SDL_SimulateGame(SDL_Window* window, SDL_Surface* surface, SDL_Rect* surfaceRectangle, Game* game, double deltaTime)
 {
     SDL_DrawTrailCircle(surface, game);
     SDL_FillCircle(surface, game->circle.position, game->circle.radius, whiteColor);
 
-    SDL_AccelerateCircle(&game->circle);
-    SDL_UpdateBallVelocity(&game->circle, surface->w, surface->h);
+    SDL_AccelerateCircle(&game->circle, deltaTime);
+    SDL_CheckBoundsBounce(&game->circle, surface->w, surface->h, deltaTime);
     StackAdd(&game->trailStack, game->circle.position);
     SDL_UpdateWindowSurface(window);
 
-    SDL_Delay(20);
+    SDL_Delay(10);
     SDL_FillRect(surface, surfaceRectangle, backgroundColor);
     SDL_UpdateWindowSurface(window);
 }
@@ -170,6 +192,11 @@ int main(int argc, char* argv[]) {
 
     game.trailStack = trailStack;
 
+    Uint64 previousTicks = SDL_GetPerformanceCounter();
+    const Uint64 frequency = SDL_GetPerformanceFrequency();
+
+    double deltaTime = 0;
+
     while(1)
     {
         if(SDL_PollEvent(&windowEvent))
@@ -180,6 +207,10 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        SDL_SimulateGame(window, surface, &surfaceRectangle, &game);
+        SDL_SimulateGame(window, surface, &surfaceRectangle, &game, deltaTime);
+
+        Uint64 currentTicks = SDL_GetPerformanceCounter();
+        deltaTime = (double)(currentTicks - previousTicks) / frequency;
+        previousTicks = currentTicks;  
     }
 }
