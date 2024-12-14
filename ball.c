@@ -2,27 +2,31 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <string.h>
 #include "include/SDL.h"
+#include "circle.h"
+#include "stack.h"
 
 const size_t whiteColor = 0xFFFFFFFF;
-const size_t blackColor = 0xFF000000;
+const size_t backgroundColor = 0xFF202020;
 const size_t windowWidth = 1000;
 const size_t windowHeight = 600;
-const double gravity = 0.5;
 
-struct Circle
+const double gravity = 0.5;
+const double ballStartingVelocityX = 30;
+const double ballStartingVelocityY = -10;
+const double bounceDeepening = 0.97;
+
+typedef struct
 {
-    int x;
-    int y;
-    int radius;
-    size_t color;
-    double velocityX;
-    double velocityY;
-};
+    Circle circle;
+    StackCircle trailStack;
+    Circle trail[20];
+} Game;
 
 size_t GenerateRandomHexColor() {
     srand(time(NULL));
-
+    
     unsigned int a = 255;
     unsigned int r = rand() % 256;
     unsigned int g = rand() % 256;
@@ -31,9 +35,9 @@ size_t GenerateRandomHexColor() {
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-void SDL_FillCircle(SDL_Surface* surface, struct Circle* circle)
+void SDL_FillCircle(SDL_Surface* surface, Circle* circle, int r)
 {
-    int r = circle->radius;
+    circle->color = GenerateRandomHexColor();
 
     for (int x = -r; x <= r; x = x + 1)
     {
@@ -41,21 +45,41 @@ void SDL_FillCircle(SDL_Surface* surface, struct Circle* circle)
         {
             double distance = sqrt((x*x) + (y*y));
 
-            if (distance <= circle->radius)
+            if (distance <= r)
             {
                 SDL_Rect rectangle;
                 rectangle.w = 1;
                 rectangle.h = 1;
                 rectangle.x = x + circle->x;
                 rectangle.y = y + circle->y;
-                circle->color = GenerateRandomHexColor();
+
                 SDL_FillRect(surface, &rectangle, circle->color);
             }
         }
     }
 }
 
-void SDL_AccelerateCircle(struct Circle* circle)
+void SDL_DrawTrailCircle(SDL_Surface* surface, Game* game)
+{
+    int trailCricleRadius = game->circle.radius;
+
+    for (int i = game->trailStack.head - 1; i >= 0; --i)
+    {
+        SDL_FillCircle(surface, &game->trail[i], trailCricleRadius);
+        trailCricleRadius *= 0.9;
+    }
+
+    if (game->trailStack.isFull != 0)
+    {        
+        for (int i = game->trailStack.size - 1; i >= game->trailStack.head; --i)
+        {
+            SDL_FillCircle(surface, &game->trail[i], trailCricleRadius);
+            trailCricleRadius *= 0.9;
+        }
+    }
+}
+
+void SDL_AccelerateCircle(Circle* circle)
 {
     circle->velocityY += gravity;
 
@@ -63,54 +87,46 @@ void SDL_AccelerateCircle(struct Circle* circle)
     circle->y = circle->y + circle->velocityY;
 }
 
-void SDL_UpdateBallVelocity(struct Circle* circle, int w, int h)
+void SDL_UpdateBallVelocity(Circle* circle, int w, int h)
 {
-    int bounced = 0;
-
     if ((circle->y - circle->radius) <= 0)
     {
         circle->velocityY = -circle->velocityY;
-        circle->velocityY *= 0.95;
+        circle->velocityY *= bounceDeepening;
         circle->y = circle->radius;
-        bounced = 1;
     }
     else if ((circle->y + circle->radius) >= h)
     {
         circle->velocityY = -circle->velocityY;
-        circle->velocityY *= 0.95;
+        circle->velocityY *= bounceDeepening;
         circle->y = h - circle->radius;
-        bounced = 1;
     }
     if ((circle->x + circle->radius) >= w)
     {
         circle->velocityX = -circle->velocityX;
-        circle->velocityX *= 0.95;
+        circle->velocityX *= bounceDeepening;
         circle->x = w - circle->radius;
-        bounced = 1;
     }
     else if ((circle->x - circle->radius) <= 0)
     {
         circle->velocityX = -circle->velocityX;
-        circle->velocityX *= 0.95;
+        circle->velocityX *= bounceDeepening;
         circle->x = circle->radius;
-        bounced = 1;
     }
-
-    // if (bounced == 1)
-    // {
-    //     circle->color = GenerateRandomHexColor();
-    // }
 }
 
-void SDL_SimulateCircle(SDL_Window* window, SDL_Surface* surface, SDL_Rect* surfaceRectangle, struct Circle* circle)
+void SDL_SimulateGame(SDL_Window* window, SDL_Surface* surface, SDL_Rect* surfaceRectangle, Game* game)
 {
-    SDL_FillCircle(surface, circle);
-    SDL_AccelerateCircle(circle);
-    SDL_UpdateBallVelocity(circle, surface->w, surface->h);
+    SDL_DrawTrailCircle(surface, game);
+    SDL_FillCircle(surface, &game->circle, game->circle.radius);
+
+    SDL_AccelerateCircle(&game->circle);
+    SDL_UpdateBallVelocity(&game->circle, surface->w, surface->h);
+    StackAdd(&game->trailStack, &game->circle);
     SDL_UpdateWindowSurface(window);
 
     SDL_Delay(16);
-    SDL_FillRect(surface, surfaceRectangle, blackColor);
+    SDL_FillRect(surface, surfaceRectangle, backgroundColor);
     SDL_UpdateWindowSurface(window);
 }
 
@@ -137,13 +153,23 @@ int main(int argc, char* argv[]) {
     rectangle.x = (surface->w/2) - (rectangle.w/2);
     rectangle.y = (surface->h/2) - (rectangle.h/2);
 
-    struct Circle circle;
+    Circle circle;
     circle.radius = 50;
     circle.color = whiteColor;
     circle.x = (surface->w/2);
     circle.y = (surface->h/2);
-    circle.velocityX = 50;
-    circle.velocityY = -20;
+    circle.velocityX = ballStartingVelocityX;
+    circle.velocityY = ballStartingVelocityY;
+
+    Game game;
+    game.circle = circle;
+
+    StackCircle trailStack;
+    memset(&trailStack, 0, sizeof(StackCircle));
+    trailStack.size = 20;
+    trailStack.items = game.trail;
+
+    game.trailStack = trailStack;
 
     while(1)
     {
@@ -155,6 +181,6 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        SDL_SimulateCircle(window, surface, &surfaceRectangle, &circle);
+        SDL_SimulateGame(window, surface, &surfaceRectangle, &game);
     }
 }
