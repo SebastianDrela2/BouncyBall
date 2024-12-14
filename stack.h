@@ -8,10 +8,10 @@ typedef struct
     int tail;
     int size;
     int isFull;
-    Circle* items;
+    Position* items;
 } StackCircle;
 
-void StackAdd(StackCircle* stack, Circle* circle);
+void StackAdd(StackCircle* stack, Position position);
 
 // TEMPLATE
 
