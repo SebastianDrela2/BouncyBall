@@ -14,13 +14,13 @@ const size_t whiteColor = 0xFFFFFF;
 const size_t orangeColor = 0xFFFFA500;
 const size_t purplePinkColor = 0xFFFF00FF;
 const size_t backgroundColor = 0xFF202020;
-const size_t windowWidth = 1000;
-const size_t windowHeight = 600;
+const size_t windowWidth = 1200;
+const size_t windowHeight = 700;
 
 const double gravity = 0.5;
 const double ballStartingVelocityX = 30;
 const double ballStartingVelocityY = -20;
-const double bounceDeepening = 0.9;
+const double bounceDeepening = 0.95;
 
 typedef struct
 {
