@@ -151,25 +151,25 @@ void SDL_AccelerateCircle(Circle* circle, double deltaTime)
 
 void SDL_CheckBoundsBounce(Circle* circle, int w, int h, double deltaTime)
 {
-    if ((circle->position.y - circle->radius) <= 0)
+    if ((circle->position.y - circle->radius) < 0)
     {
         circle->velocityY = -circle->velocityY;
         circle->velocityY *= bounceDeepening;
         circle->position.y = circle->radius;
     }
-    else if ((circle->position.y + circle->radius) >= h)
+    else if ((circle->position.y + circle->radius) > h)
     {
         circle->velocityY = -circle->velocityY;
         circle->velocityY *= bounceDeepening;
         circle->position.y = h - circle->radius;
     }
-    if ((circle->position.x + circle->radius) >= w)
+    if ((circle->position.x + circle->radius) > w)
     {
         circle->velocityX = -circle->velocityX;
         circle->velocityX *= bounceDeepening;
         circle->position.x = w - circle->radius;
     }
-    else if ((circle->position.x - circle->radius) <= 0)
+    else if ((circle->position.x - circle->radius) < 0)
     {
         circle->velocityX = -circle->velocityX;
         circle->velocityX *= bounceDeepening;
