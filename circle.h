@@ -4,8 +4,8 @@
 
 typedef struct 
 {
-    int x;
-    int y;
+    double x;
+    double y;
 } Position;
 
 typedef struct

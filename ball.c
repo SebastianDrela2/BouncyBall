@@ -7,8 +7,7 @@
 #include "circle.h"
 #include "stack.h"
 
-#define circleRadiusDeepening 0.9;
-#define trailAmount 50
+#define trailAmount 20
 
 const size_t whiteColor = 0xFFFFFF;
 const size_t orangeColor = 0xFFFFA500;
@@ -18,9 +17,12 @@ const size_t windowWidth = 1200;
 const size_t windowHeight = 700;
 
 const double gravity = 0.5;
-const double ballStartingVelocityX = 30;
+const double ballStartingVelocityX = 50;
 const double ballStartingVelocityY = -20;
-const double bounceDeepening = 0.95;
+const double bounceDeepening = 0.99;
+const double moveMultiplier = 0.3;
+const double timeMultiplier = 60;
+const double trailFrequency = 1;
 
 typedef struct
 {
@@ -105,11 +107,18 @@ void SDL_FillCircle(SDL_Surface* surface, Position position, int r, Uint32 color
     }
 }
 
-void SDL_FadeTrailCircle(SDL_Surface* surface, Position trail, double trailCircleRadius, double* trailMultiplier, size_t color)
+void SDL_FadeTrailCircle(SDL_Surface* surface, Position trail, double trailCircleRadius, double trailMultiplier, size_t color)
 {
-    *trailMultiplier *= 0.9;
-    size_t fadedColor = SDL_MultipleTrailColor(color, *trailMultiplier);
+    size_t fadedColor = SDL_MultipleTrailColor(color, trailMultiplier);
     SDL_FillCircle(surface, trail, trailCircleRadius, fadedColor);
+}
+
+void SDL_DrawSingleTrain(SDL_Surface* surface, Position trail, double* drawnTrailCounter, int* trailCircleRadius, double circleRadius)
+{
+    double trailMultiplier = *drawnTrailCounter / trailAmount;
+    SDL_FadeTrailCircle(surface, trail, *trailCircleRadius, trailMultiplier, purplePinkColor);         
+    *trailCircleRadius = circleRadius * trailMultiplier;
+    --*drawnTrailCounter;
 }
 
 void SDL_DrawTrailCircle(SDL_Surface* surface, Game* game)
@@ -120,16 +129,14 @@ void SDL_DrawTrailCircle(SDL_Surface* surface, Game* game)
 
     for (int i = game->trailStack.head - 1; i >= 0; --i)
     {
-        SDL_FadeTrailCircle(surface, game->trail[i], trailCricleRadius, &trailMultiplier, purplePinkColor);
-        trailCricleRadius *= circleRadiusDeepening;
+        SDL_DrawSingleTrain(surface, game->trail[i], &drawnTrailCounter, &trailCricleRadius, game->circle.radius);
     }
 
     if (game->trailStack.isFull != 0)
     {        
         for (int i = game->trailStack.size - 1; i >= game->trailStack.head; --i)
         {
-            SDL_FadeTrailCircle(surface, game->trail[i], trailCricleRadius, &trailMultiplier, purplePinkColor);         
-            trailCricleRadius *= circleRadiusDeepening;
+            SDL_DrawSingleTrain(surface, game->trail[i], &drawnTrailCounter, &trailCricleRadius, game->circle.radius);
         }
     }
 }
@@ -141,63 +148,55 @@ void SDL_AccelerateCircle(Circle* circle, double deltaTime)
         return;
     }
 
-    double deltaMultiplier = deltaTime * 50.0;
+    circle->velocityY += gravity * deltaTime * moveMultiplier;
 
-    circle->velocityY += gravity * deltaMultiplier;
-
-    circle->position.x = circle->position.x + (circle->velocityX * deltaMultiplier);
-    circle->position.y = circle->position.y + (circle->velocityY * deltaMultiplier);
+    circle->position.x += (circle->velocityX * deltaTime) * moveMultiplier;
+    circle->position.y += (circle->velocityY * deltaTime) * moveMultiplier;
 }
 
-void SDL_CheckBoundsBounce(Circle* circle, int w, int h, double deltaTime)
+void SDL_CheckBoundsBounce(Circle* circle, int w, int h)
 {
-    if ((circle->position.y - circle->radius) < 0)
+    if ((circle->position.y - circle->radius) < 0) // TOP
     {
-        circle->velocityY = -circle->velocityY;
-        circle->velocityY *= bounceDeepening;
-        circle->position.y = circle->radius;
+        circle->velocityY *= -bounceDeepening;
+        circle->position.y = 0 + circle->radius;
     }
-    else if ((circle->position.y + circle->radius) > h)
+    else if ((circle->position.y + circle->radius) > h) // BOTTOM
     {
-        circle->velocityY = -circle->velocityY;
-        circle->velocityY *= bounceDeepening;
+        circle->velocityY *= -bounceDeepening;
         circle->position.y = h - circle->radius;
     }
-    if ((circle->position.x + circle->radius) > w)
+
+    if ((circle->position.x + circle->radius) > w) // RIGHT
     {
-        circle->velocityX = -circle->velocityX;
-        circle->velocityX *= bounceDeepening;
+        circle->velocityX *= -bounceDeepening;
         circle->position.x = w - circle->radius;
     }
-    else if ((circle->position.x - circle->radius) < 0)
+    else if ((circle->position.x - circle->radius) < 0) // LEFT
     {
-        circle->velocityX = -circle->velocityX;
-        circle->velocityX *= bounceDeepening;
-        circle->position.x = circle->radius;
+        circle->velocityX *= -bounceDeepening;
+        circle->position.x = 0 + circle->radius;
     }
 }
 
 void SDL_SimulateGame(SDL_Window* window, SDL_Surface* surface, SDL_Rect* surfaceRectangle, Game* game, double deltaTime)
 {
+    SDL_FillRect(surface, surfaceRectangle, backgroundColor);
+
     SDL_DrawTrailCircle(surface, game);
     SDL_FillCircle(surface, game->circle.position, game->circle.radius, whiteColor);
 
     SDL_AccelerateCircle(&game->circle, deltaTime);
-    SDL_CheckBoundsBounce(&game->circle, surface->w, surface->h, deltaTime);
+    SDL_CheckBoundsBounce(&game->circle, surface->w, surface->h);
 
-    double deltaMultiplier = deltaTime * 50;
-    game->pendingTrail += deltaMultiplier;
+    game->pendingTrail += deltaTime * trailFrequency;
 
     while (game->pendingTrail > 1)
     {
         game->pendingTrail--;
         StackAdd(&game->trailStack, game->circle.position);
     }
-
-    SDL_UpdateWindowSurface(window);
-
-    SDL_Delay(10);
-    SDL_FillRect(surface, surfaceRectangle, backgroundColor);
+    
     SDL_UpdateWindowSurface(window);
 }
 
@@ -215,8 +214,8 @@ int main(int argc, char* argv[]) {
     SDL_Rect surfaceRectangle;
     surfaceRectangle.x = 0;
     surfaceRectangle.y = 0;
-    surfaceRectangle.w = windowWidth;
-    surfaceRectangle.h = windowHeight;
+    surfaceRectangle.w = surface->w;
+    surfaceRectangle.h = surface->h;
 
     SDL_Rect rectangle;
     rectangle.w = 100;
@@ -262,6 +261,8 @@ int main(int argc, char* argv[]) {
 
         Uint64 currentTicks = SDL_GetPerformanceCounter();
         deltaTime = (double)(currentTicks - previousTicks) / frequency;
+        deltaTime *= timeMultiplier;
+
         previousTicks = currentTicks;  
     }
 }
