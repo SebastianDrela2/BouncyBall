@@ -61,6 +61,11 @@ size_t SDL_MultipleTrailColor(size_t color, double multiplier)
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
+double lerp(double minA, double maxB, double t)
+{
+    return minA + (t * (maxB - minA));
+}
+
 void SDL_DrawHorizontalLine(SDL_Surface* surface, int x1, int x2, int y, size_t color) 
 {
     if (y < 0 || y >= surface->h || x1 >= surface->w || x2 < 0)
@@ -113,30 +118,29 @@ void SDL_FadeTrailCircle(SDL_Surface* surface, Position trail, double trailCircl
     SDL_FillCircle(surface, trail, trailCircleRadius, fadedColor);
 }
 
-void SDL_DrawSingleTrain(SDL_Surface* surface, Position trail, double* drawnTrailCounter, int* trailCircleRadius, double circleRadius)
+void SDL_DrawSingleTrail(SDL_Surface* surface, Position trail, double* drawnTrailCounter, double circleRadius)
 {
     double trailMultiplier = *drawnTrailCounter / trailAmount;
-    SDL_FadeTrailCircle(surface, trail, *trailCircleRadius, trailMultiplier, purplePinkColor);         
-    *trailCircleRadius = circleRadius * trailMultiplier;
+    SDL_FadeTrailCircle(surface, trail, circleRadius * trailMultiplier, trailMultiplier, purplePinkColor);
+
     --*drawnTrailCounter;
 }
 
 void SDL_DrawTrailCircle(SDL_Surface* surface, Game* game)
 {
-    int trailCricleRadius = game->circle.radius;
     double drawnTrailCounter = trailAmount;
     double trailMultiplier = 1;
 
     for (int i = game->trailStack.head - 1; i >= 0; --i)
     {
-        SDL_DrawSingleTrain(surface, game->trail[i], &drawnTrailCounter, &trailCricleRadius, game->circle.radius);
+        SDL_DrawSingleTrail(surface, game->trail[i], &drawnTrailCounter, game->circle.radius);
     }
 
     if (game->trailStack.isFull != 0)
     {        
         for (int i = game->trailStack.size - 1; i >= game->trailStack.head; --i)
         {
-            SDL_DrawSingleTrain(surface, game->trail[i], &drawnTrailCounter, &trailCricleRadius, game->circle.radius);
+            SDL_DrawSingleTrail(surface, game->trail[i], &drawnTrailCounter, game->circle.radius);
         }
     }
 }
